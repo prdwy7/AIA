@@ -1,0 +1,25 @@
+[project]
+name = "advisory-service"
+version = "0.1.0"
+description = "AI Kiosk advisory-service — composes the grounded answer. (docs/02 S11)"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.116",
+    "uvicorn[standard]>=0.34",
+    "pydantic>=2.9",
+    "httpx>=0.28",
+    "canonical-schema",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3", "httpx>=0.28"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/advisory_service"]
+
+[tool.uv.sources]
+canonical-schema = { workspace = true }

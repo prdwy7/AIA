@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+uv.lock.bak
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# Datasets & model artifacts (use DVC, not git)
+data/
+*.onnx
+*.gguf
+*.bin
+*.safetensors
+models/artifacts/
+models/weights/
+
+# Media
+media/
+*.wav
+*.mp3
+*.ogg
+
+# Flutter
+kiosk/build/
+kiosk/.dart_tool/
+kiosk/.flutter-plugins*
+
+# Node / UI
+ui/*/node_modules/
+ui/*/dist/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Local state
+*.log
+tmp/
+
+# Runtime data mounted from the dev compose stack (not source)
+infra/observability/grafana/

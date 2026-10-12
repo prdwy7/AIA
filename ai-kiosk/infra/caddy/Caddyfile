@@ -1,0 +1,31 @@
+# AI Kiosk — central public gateway (Caddy). TLS via Let's Encrypt; internal
+# services stay private. Placeholder domains — replace with real FQDNs.
+{
+	admin off
+	email ops@example.com
+}
+
+# Public API (core-api)
+api.kiosk.example.com {
+	reverse_proxy core-api:8000
+}
+
+# Admin console (S22)
+console.kiosk.example.com {
+	reverse_proxy admin-console:5174
+}
+
+# Scientist portal (S21)
+portal.kiosk.example.com {
+	reverse_proxy scientist-portal:5173
+}
+
+# Device sync (S19/S23) — mTLS: device identity via client certificates.
+sync.kiosk.example.com {
+	tls {
+		client_auth {
+			mode require_and_verify
+		}
+	}
+	reverse_proxy sync-agent:8000
+}

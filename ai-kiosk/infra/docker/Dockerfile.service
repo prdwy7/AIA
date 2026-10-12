@@ -1,0 +1,29 @@
+# syntax=docker/dockerfile:1
+# Build any FastAPI service in the uv workspace (services/*, packages/*).
+#
+# Build context: repo root (ai-kiosk/). Select the service with --build-arg.
+#   docker build -f infra/docker/Dockerfile.service \
+#     --build-arg SERVICE=core-api -t ai-kiosk/core-api .
+#
+# The app module is `<pkg>.app:app`, where `<pkg>` is SERVICE with `-` → `_`
+# (e.g. core-api -> core_api.app:app). See services/<service>/README.md.
+
+# Stage 1 — sync the whole uv workspace (all packages + services).
+FROM ghcr.io/astral-sh/uv:0.12.1-python3.12 AS build
+WORKDIR /repo
+COPY pyproject.toml uv.lock ./
+COPY packages ./packages
+COPY services ./services
+RUN uv sync --all-packages --no-dev --frozen
+
+# Stage 2 — slim runtime for one service.
+FROM python:3.12-slim AS runtime
+ARG SERVICE=core-api
+ENV SERVICE=${SERVICE}
+WORKDIR /app
+COPY --from=build /repo/.venv /app/.venv
+COPY --from=build /repo/services /app/services
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH="/app/services/${SERVICE}/src"
+EXPOSE 8000
+CMD ["sh", "-c", "exec uvicorn \"$(echo ${SERVICE} | tr '-' '_').app:app\" --host 0.0.0.0 --port 8000"]

@@ -1,0 +1,26 @@
+name: eval-gate
+
+# AI evaluation gate (docs/08 §2–§3). Blocking: RAGAS / DeepEval / promptfoo on
+# the KVK-curated evaluation sets + the red-team suite. Runs on every build and
+# on release branches; monthly on a production sample.
+on:
+  push:
+    branches: [main, "release/*"]
+  workflow_dispatch:
+
+jobs:
+  eval:
+    name: RAGAS + DeepEval + promptfoo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.12.1"
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: uv sync --all-packages --frozen
+      - name: Run evaluation gate (blocking)
+        run: ./scripts/run_eval_gate.sh

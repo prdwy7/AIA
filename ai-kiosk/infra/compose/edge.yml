@@ -1,0 +1,47 @@
+# AI Kiosk — simulated edge stack (a single kiosk device), Phase 1.
+#
+# Usage:  make edge-up   (== docker compose -f infra/compose/edge.yml up -d)
+#
+# Emulates one kiosk: local Postgres + pgvector (edge system of record), local
+# Redis, local MQTT (Mosquitto), and Ollama (local LLM). The full local pipeline
+# must keep working with `--network none` (offline resilience tests, docs/08 §4).
+services:
+  postgres-edge:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: kiosk
+      POSTGRES_PASSWORD: kiosk
+      POSTGRES_DB: ai_kiosk_edge
+    ports:
+      - "5433:5432"
+    volumes:
+      - edge-pgdata:/var/lib/postgresql/data
+      - ../../db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kiosk -d ai_kiosk_edge"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-edge:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1884:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  ollama:
+    image: ollama/ollama:0.34.4
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+
+volumes:
+  edge-pgdata:
+  ollama:

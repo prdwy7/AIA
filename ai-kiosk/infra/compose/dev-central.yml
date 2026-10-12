@@ -1,0 +1,146 @@
+# AI Kiosk — central development stack (Phase 1).
+#
+# Usage:  make dev-up   (== docker compose -f infra/compose/dev-central.yml up -d)
+#
+# Mirrors the production central topology (docs/01-architecture.md) for local
+# development: Postgres 17 + pgvector (system of record), SeaweedFS (S3 object
+# storage; MinIO stopped shipping free images in Oct 2025),
+# Redis (queue/session), EMQX (MQTT), Keycloak (identity), and the observability
+# + analytics stack (Prometheus, Grafana, Loki, Metabase).
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: kiosk
+      POSTGRES_PASSWORD: kiosk
+      POSTGRES_DB: ai_kiosk
+    ports:
+      # Host 5432 is taken by a system Postgres (Homebrew) on dev machines;
+      # publish the central Postgres on 55432 to avoid the clash.
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../../db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kiosk -d ai_kiosk"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres-init:
+    image: pgvector/pgvector:pg17
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: kiosk
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        psql -h postgres -U kiosk -d ai_kiosk -Atc "SELECT datname FROM pg_database" | grep -qx keycloak ||
+        psql -h postgres -U kiosk -d ai_kiosk -c 'CREATE DATABASE keycloak';
+        psql -h postgres -U kiosk -d ai_kiosk -Atc "SELECT datname FROM pg_database" | grep -qx metabase ||
+        psql -h postgres -U kiosk -d ai_kiosk -c 'CREATE DATABASE metabase';
+
+  seaweedfs:
+    image: chrislusf/seaweedfs
+    command: server -s3 -s3.port=9000 -s3.config=/s3.json -volume.max=0 -dir /data
+    ports:
+      - "9000:9000"
+    volumes:
+      - s3data:/data
+      - ./seaweedfs-s3.json:/s3.json:ro
+
+  seaweedfs-init:
+    image: amazon/aws-cli
+    depends_on:
+      - seaweedfs
+    environment:
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      aws --endpoint-url http://seaweedfs:9000 s3 mb s3://kiosk-media || true;
+      aws --endpoint-url http://seaweedfs:9000 s3 mb s3://kiosk-bundles || true;
+      "
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  emqx:
+    image: emqx/emqx:5.7
+    ports:
+      - "1883:1883"
+      - "8083:8083"
+      - "18083:18083"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: start-dev
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: kiosk
+      KC_DB_PASSWORD: kiosk
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../keycloak:/opt/keycloak/data/import:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ../observability/grafana:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+
+  loki:
+    image: grafana/loki:3.1.0
+    ports:
+      - "3100:3100"
+    volumes:
+      - ../observability/loki-config.yaml:/etc/loki/local-config.yaml:ro
+    command: -config.file=/etc/loki/local-config.yaml
+
+  metabase:
+    image: metabase/metabase:latest
+    ports:
+      - "3001:3000"
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: metabase
+      MB_DB_USER: kiosk
+      MB_DB_PASS: kiosk
+      MB_DB_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+      postgres-init:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
+  s3data:

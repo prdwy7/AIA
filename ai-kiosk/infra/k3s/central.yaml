@@ -1,0 +1,51 @@
+# Reference: central namespace + a placeholder stateless Deployment.
+# Each service is built from infra/docker/Dockerfile.service with
+# --build-arg SERVICE=<name>. Placeholders only — production hardening in W3–W5.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-kiosk
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-api
+  namespace: ai-kiosk
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: core-api
+  template:
+    metadata:
+      labels:
+        app: core-api
+    spec:
+      containers:
+        - name: core-api
+          image: ai-kiosk/core-api:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: ai-kiosk-secrets
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: core-api
+  namespace: ai-kiosk
+spec:
+  selector:
+    app: core-api
+  ports:
+    - port: 8000
+      targetPort: 8000

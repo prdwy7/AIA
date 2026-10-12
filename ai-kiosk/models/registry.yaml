@@ -1,0 +1,167 @@
+# AI Kiosk v2 — Model registry (docs/05-models.md §1; roadmap §5.3)
+#
+# Machine-readable catalog of every model in the system. Baseline pins: Sep 2026.
+# All pins live in lockfiles and Dockerfile tags; upgrades follow the release
+# framework (roadmap §4.5) with regression gates.
+#
+# Conventions:
+# - `id` is the logical version used in the version tuple (MODEL_VERSION etc.).
+# - `artifact` is content-addressed (SHA-256) + signed; the version registry
+#   (db: version_registry) maps logical versions to artifact digests.
+# - `card` links to the per-model card in models/cards/.
+# - `status_at_m1` is the Phase-1/5 model-selection gate state (docs/05 §4).
+
+version: "1.0.0"
+baseline: "2026-09"
+
+models:
+  - id: MODEL-0.1.0
+    name: "Gemma 3 12B (Q5_K_M)"
+    class: LLM+VLM
+    license: "Gemma Terms of Use"
+    deploy: "Edge (Ollama 0.34.x)"
+    purpose: "Advisory drafting, structured observations"
+    source: "ollama library: gemma3:12b (Q5_K_M)"
+    card: cards/gemma-3-12b.md
+    status_at_m1: "Baseline benchmark"
+
+  - id: MODEL-0.1.1
+    name: "Llama 3.1 8B (Q5_K_M)"
+    class: LLM
+    license: "Llama 3.1 Community License"
+    deploy: "Edge (Ollama 0.34.x)"
+    purpose: "Lightweight fallback / canary comparison"
+    source: "ollama library: llama3.1:8b (Q5_K_M)"
+    card: cards/llama-3.1-8b.md
+    status_at_m1: "Baseline benchmark"
+
+  - id: MODEL-0.2.0
+    name: "Sarvam-M 24B (FP8/AWQ)"
+    class: LLM
+    license: "Apache-2.0"
+    deploy: "Central (vLLM/Ollama)"
+    purpose: "Online-mode drafting, eval judge"
+    source: "Sarvam AI (Telugu reward 8.05 — best open Telugu LLM at baseline)"
+    card: cards/sarvam-m-24b.md
+    status_at_m1: "Baseline benchmark"
+
+  - id: ASR-0.1.0
+    name: "whisper-large-v3-vaani-telugu (faster-whisper, int8)"
+    class: ASR
+    license: "Apache-2.0"
+    deploy: "Edge"
+    purpose: "PRIMARY offline Telugu/English transcription"
+    source: "https://huggingface.co/ARTPARK-IISc/whisper-large-v3-vaani-telugu"
+    card: cards/vaani-whisper-telugu.md
+    status_at_m1: "WER benchmark on agri-vocab set"
+
+  - id: ASR-0.1.1
+    name: "SraVaani-1.0 (ONNX/FP16)"
+    class: ASR
+    license: "MIT"
+    deploy: "Edge"
+    purpose: "FAST FALLBACK (low latency / GPU contention)"
+    source: "https://huggingface.co/ARTPARK-IISc/SraVaani-1.0"
+    card: cards/sravaani-1.0.md
+    status_at_m1: "Latency + WER benchmark"
+
+  - id: ASR-0.2.0
+    name: "IndicWav2Vec Telugu (fine-tuned)"
+    class: ASR
+    license: "per AI4Bharat"
+    deploy: "Edge"
+    purpose: "Domain-adapted ASR candidate"
+    source: "AI4Bharat IndicWav2Vec (fine-tune on KVK agri-vocab set)"
+    card: null
+    status_at_m1: "Phase 5 candidate"
+
+  - id: TTS-0.1.0
+    name: "Piper Telugu (medium quality)"
+    class: TTS
+    license: "MIT"
+    deploy: "Edge"
+    purpose: "Offline Telugu speech"
+    source: "piper1-gpl (Telugu voice, medium)"
+    card: cards/piper-tts-telugu.md
+    status_at_m1: "MOS test with farmers"
+
+  - id: TTS-0.2.0
+    name: "BHASHINI TTS Telugu"
+    class: TTS
+    license: "platform terms"
+    deploy: "Central"
+    purpose: "Online-quality speech"
+    source: "bhashini.gov.in TTS API"
+    card: null
+    status_at_m1: "A/B with Piper"
+
+  - id: EMB-0.1.0
+    name: "BGE-M3"
+    class: Embedding
+    license: "MIT"
+    deploy: "Edge + Central"
+    purpose: "KB + case embeddings (dense 1024-d + sparse lexical)"
+    source: "BAAI/bge-m3"
+    card: cards/bge-m3.md
+    status_at_m1: "Recall benchmark"
+
+  - id: RERANK-0.1.0
+    name: "BGE-Reranker-v2-M3"
+    class: Reranker
+    license: "MIT"
+    deploy: "Edge + Central"
+    purpose: "Evidence reranking"
+    source: "BAAI/bge-reranker-v2-m3"
+    card: cards/bge-reranker-v2-m3.md
+    status_at_m1: "NDCG benchmark"
+
+  - id: VISION-0.1.0
+    name: "Gemma 3 12B vision"
+    class: VLM
+    license: "Gemma Terms of Use"
+    deploy: "Edge (Ollama)"
+    purpose: "Structured observations (observation extractor + hypothesis generator only — never a final diagnosis)"
+    source: "ollama library: gemma3:12b (vision-capable)"
+    card: cards/gemma-3-12b.md
+    status_at_m1: "Observation-accuracy benchmark"
+
+  - id: CLASS-0.1.0
+    name: "ViT-B/16 fine-tuned (KVK dataset v1)"
+    class: Classifier
+    license: "internal (KVK-curated dataset)"
+    deploy: "Edge (ONNX)"
+    purpose: "Disease/pest classification (required: open VLMs only ~39–65% fine-grained, WACV 2026 HARVEST-Vision)"
+    source: "KVK-curated dataset v1 (top 10–15 diseases/pests of Kurnool crops, ≥500 images/class, two-scientist labeling, Cohen's κ ≥ 0.80)"
+    card: cards/vit-classifier.md
+    status_at_m1: "F1 per class benchmark"
+
+# ASR chain (user-specified primary + fallback) — docs/05 §2
+asr_chain:
+  - priority: 1
+    role: primary
+    model_id: ASR-0.1.0
+    when: "default; quality-first path"
+  - priority: 2
+    role: fast_fallback
+    model_id: ASR-0.1.1
+    when: "utterance ≤ 3 s and GPU free; GPU busy with LLM/vision; latency budget tight"
+  - priority: 3
+    role: online_cross_check
+    model_id: BHASHINI-ASR
+    when: "online AND (confidence < 0.60 OR cross-check of low-confidence transcript)"
+    note: "disagreement on a critical entity → confirmation gate showing both candidates"
+
+tts_chain:
+  - priority: 1
+    model_id: TTS-0.1.0
+    note: "default, offline, sub-second on CPU"
+  - priority: 2
+    model_id: TTS-0.2.0
+    note: "online, higher quality"
+  - priority: 3
+    model_id: null
+    note: "text-only display (screen always shows the full answer)"
+
+# Selection gate (docs/05 §4): the primary model must beat the alternative by the
+# framework-defined margin on the KVK-curated evaluation sets (docs/05 §5) or be
+# swapped — the architecture is model-agnostic by design.

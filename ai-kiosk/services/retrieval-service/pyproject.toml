@@ -1,0 +1,26 @@
+[project]
+name = "retrieval-service"
+version = "0.1.0"
+description = "AI Kiosk hybrid evidence retrieval — structured filters + keyword + vector (BGE-M3) + authority/freshness ranking (docs/02 S8)"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.116",
+    "uvicorn[standard]>=0.34",
+    "pydantic>=2.9",
+    "canonical-schema",
+]
+
+[project.optional-dependencies]
+# Heavy embedding runtime is optional; HashEmbedder is the dev/test fallback.
+embed = ["sentence-transformers>=3.0"]
+dev = ["pytest>=8.3", "httpx>=0.28"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/retrieval_service"]
+
+[tool.uv.sources]
+canonical-schema = { workspace = true }

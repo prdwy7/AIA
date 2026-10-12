@@ -1,0 +1,59 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python:
+    name: lint + test + typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.12.1"
+          python-version: "3.12"
+      - run: uv sync --all-packages --frozen
+      - name: Lint
+        run: uv run ruff check packages services
+      - name: Typecheck
+        run: uv run mypy packages/canonical-schema/src packages/agri-rules/src
+      - name: Test
+        run: uv run pytest -q
+
+  build-images:
+    name: build service images
+    needs: python
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [core-api, speech-service, retrieval-service, image-service]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infra/docker/Dockerfile.service
+          build-args: SERVICE=${{ matrix.service }}
+          push: false
+          tags: ai-kiosk/${{ matrix.service }}:ci
+
+  ui-build:
+    name: build UIs
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ui: [scientist-portal, admin-console]
+    defaults:
+      run:
+        working-directory: ui/${{ matrix.ui }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm run build

@@ -1,0 +1,27 @@
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+
+scrape_configs:
+  # Central services expose /metrics (OpenTelemetry/Prometheus). Each service
+  # is a stateless Deployment with a Service named after it.
+  - job_name: services
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - core-api:8000
+          - input-orchestrator:8000
+          - case-service:8000
+          - retrieval-service:8000
+          - rules-service:8000
+          - prescription-service:8000
+          - review-service:8000
+          - advisory-service:8000
+
+  # Edge telemetry ships via MQTT to EMQX and is scraped by an edge exporter;
+  # local buffering covers connectivity gaps (docs/08 §4). Targets are populated
+  # by the exporter service-discovery once devices register.
+  - job_name: edge-devices
+    metrics_path: /metrics
+    static_configs:
+      - targets: []
